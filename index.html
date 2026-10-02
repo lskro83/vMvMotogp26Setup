@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VMV MotoGP Setup</title>
+    
+    <!-- Configuration PWA intégrée (Manifest en Data-URI) -->
+    <link rel="manifest" href='data:application/json;charset=utf-8,{"name":"VMV MotoGP Setup","short_name":"VMV Setup","start_url":"./","display":"standalone","background_color":"%230a0a0a","theme_color":"%23ff3333","icons":[{"src":"https://cdn-icons-png.flaticon.com/512/3790/3790155.png","sizes":"512x512","type":"image/png"}]}'>
+    <meta name="theme-color" content="#ff3333">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="VMV Setup">
+
+    <!-- Importation de Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            background-color: #0a0a0a;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            padding: 15px;
+            padding-bottom: 80px;
+        }
+        h2 { color: #ff3333; text-align: center; margin-bottom: 15px; font-size: 20px; }
+        
+        /* Navigation par onglets */
+        .nav-tabs {
+            display: flex;
+            background: #151515;
+            padding: 5px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border: 1px solid #222;
+        }
+        .nav-tab {
+            flex: 1;
+            padding: 10px 5px;
+            text-align: center;
+            background: transparent;
+            color: #aaa;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 12px;
+            border-radius: 6px;
+            transition: 0.2s;
+        }
+        .nav-tab.active {
+            background: #ff3333;
+            color: #fff;
+        }
+
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+
+        .card {
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            border: 1px solid #252525;
+        }
+        label { display: block; margin-top: 10px; font-size: 13px; color: #bbb; }
+        select, input, textarea, button {
+            width: 100%;
+            margin-top: 5px;
+            margin-bottom: 8px;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #333;
+            background: #252525;
+            color: #fff;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+        button {
+            background: #ff3333;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        button:hover { background: #e02e2e; }
+        .btn-secondary { background: #0066ff; }
+        .btn-secondary:hover { background: #0052cc; }
+        
+        .ai-box {
+            background: #252525;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #ff3333;
+            white-space: pre-line;
+            font-size: 13px;
+            line-height: 1.5;
+            margin-top: 12px;
+        }
+        .setup-item {
+            background: #252525;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            border: 1px solid #333;
+        }
+        .setup-item h4 { margin: 0 0 5px 0; color: #4da6ff; font-size: 15px; }
+        .setup-item p { font-size: 13px; margin: 0 0 5px 0; white-space: pre-line; }
+        .setup-item small { color: #888; }
+        .row { display: flex; gap: 10px; }
+        .col { flex: 1; }
+        .badge { background: #333; padding: 2px 6px; border-radius: 4px; font-size: 11px; color: #ff3333; float: right; }
+    </style>
+</head>
+<body>
+
+    <h2>VMV MOTOGP SETUP</h2>
+
+    <!-- BARRE DE NAVIGATION / ONGLETS -->
+    <div class="nav-tabs">
+        <button class="nav-tab active" id="btn-setups" onclick="changerSection('tab-setups', 'btn-setups')">Setups</button>
+        <button class="nav-tab" id="btn-coach" onclick="changerSection('tab-coach', 'btn-coach')">Coach IA</button>
+        <button class="nav-tab" id="btn-creer" onclick="changerSection('tab-creer', 'btn-creer')">Créer</button>
+        <button class="nav-tab" id="btn-profil" onclick="changerSection('tab-profil', 'btn-profil')">Compte</button>
+    </div>
+
+    <!-- 1. ONGLET SETUPS PUBLICS & FILTRES -->
+    <div id="tab-setups" class="tab-content active">
+        <div class="card">
+            <h3>🌐 Set-ups Communautaires</h3>
+            
+            <label>Filtrer par texte (Moto, Pilote...) :</label>
+            <input type="text" id="filtreInput" placeholder="Ex: Ducati, Rossi..." oninput="filtrerSetups()">
+
+            <label>Filtrer par Circuit :</label>
+            <select id="filtreCircuitSelect" onchange="filtrerSetups()">
+                <option value="">Tous les circuits</option>
+                <option value="Mugello">Mugello</option>
+                <option value="Silverstone">Silverstone</option>
+                <option value="Sepang">Sepang</option>
+                <option value="Assen">Assen</option>
+                <option value="Le Mans">Le Mans</option>
+            </select>
+
+            <div id="listeSetups" style="margin-top: 15px;">
+                Chargement des set-ups...
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. ONGLET COACH IA EXPERT -->
+    <div id="tab-coach" class="tab-content">
+        <div class="card">
+            <h3>🤖 Coach IA & Ingénieur Piste</h3>
+            
+            <div class="row">
+                <div class="col">
+                    <label>Type de Circuit :</label>
+                    <select id="circuitSelect" onchange="mettreAJourConseil()">
+                        <option value="Stop-and-go (Gros freinages)">Stop-and-go</option>
+                        <option value="Fluide et rapide (Courbes amples)">Fluide / Rapide</option>
+                        <option value="Mixte / Technique">Mixte / Technique</option>
+                    </select>
+                </div>
+                <div class="col">
+                    <label>Météo / Piste :</label>
+                    <select id="meteoSelect" onchange="mettreAJourConseil()">
+                        <option value="Piste sèche / Grip optimal">Piste sèche</option>
+                        <option value="Piste fraîche / Grip moyen">Piste fraîche</option>
+                        <option value="Piste très chaude (Grip glissant)">Piste très chaude</option>
+                    </select>
+                </div>
+            </div>
+
+            <label>Phase de pilotage :</label>
+            <select id="phaseSelect" onchange="mettreAJourConseil()">
+                <option value="Entrée de virage">Entrée de virage</option>
+                <option value="Milieu de virage">Milieu de virage</option>
+                <option value="Sortie de virage">Sortie de virage</option>
+                <option value="Freinage d'urgence">Freinage d'urgence</option>
+            </select>
+
+            <label>Problème rencontré :</label>
+            <select id="problemeSelect" onchange="mettreAJourConseil()">
+                <option value="Survirage / Arrière décroche">Survirage / Arrière décroche</option>
+                <option value="Sous-virage / Ne tourne pas">Sous-virage / Ne tourne pas</option>
+                <option value="Pompage à l'accélération">Pompage à l'accélération</option>
+                <option value="Train avant flou / Instable">Train avant flou / Instable</option>
+            </select>
+
+            <div id="conseilBox" class="ai-box">
+                Analyse de l'ingénieur en cours...
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. ONGLET CRÉER UN SETUP -->
+    <div id="tab-creer" class="tab-content">
+        <div class="card">
+            <h3>➕ Partager un Set-up</h3>
+            
+            <form id="setupForm" onsubmit="publierSetup(event)">
+                <label>Votre Pseudo de Pilote :</label>
+                <input type="text" id="auteurInput" placeholder="Ex: Rossi46" required>
+                
+                <div class="row">
+                    <div class="col">
+                        <label>Moto :</label>
+                        <input type="text" id="motoInput" placeholder="Ex: Ducati" required>
+                    </div>
+                    <div class="col">
+                        <label>Circuit :</label>
+                        <select id="circuitNomInput" required>
+                            <option value="Mugello">Mugello</option>
+                            <option value="Silverstone">Silverstone</option>
+                            <option value="Sepang">Sepang</option>
+                            <option value="Assen">Assen</option>
+                            <option value="Le Mans">Le Mans</option>
+                            <option value="Autre">Autre</option>
+                        </select>
+                    </div>
+                </div>
+
+                <label>Détails complets des réglages :</label>
+                <textarea id="detailsInput" placeholder="Ex: Fourche précharge 5 tours, détente +2..." rows="5" required></textarea>
+                
+                <button type="submit" class="btn-secondary" style="margin-top: 10px;">Publier le set-up</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 4. ONGLET CONNEXION -->
+    <div id="tab-profil" class="tab-content">
+        <div class="card" style="text-align: center;">
+            <h3>👤 Session Pilote</h3>
+            <p style="font-size: 13px; color: #aaa;">Enregistrez votre pseudo pour signer vos publications automatiquement.</p>
+            
+            <label>Votre Pseudo :</label>
+            <input type="text" id="pseudoActifInput" placeholder="Entrez votre pseudo" oninput="mettreAJourPseudo(this.value)">
+            <p id="statutSession" style="color: #4da6ff; font-size: 12px; margin-top: 10px;"></p>
+        </div>
+    </div>
+
+    <script>
+        // Remplacez par vos clés Supabase
+        const SUPABASE_URL = 'VOTRE_SUPABASE_URL';
+        const SUPABASE_ANON_KEY = 'VOTRE_SUPABASE_ANON_KEY';
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        let tousLesSetups = [];
+
+        // Gestion propre et sans bug des sections
+        function changerSection(idSection, idBouton) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
+            
+            document.getElementById(idSection).classList.add('active');
+            document.getElementById(idBouton).classList.add('active');
+        }
+
+        // Gestion du pseudo
+        function mettreAJourPseudo(valeur) {
+            localStorage.setItem('vmv_pseudo', valeur);
+            const auteurInput = document.getElementById('auteurInput');
+            const statutSession = document.getElementById('statutSession');
+            if (auteurInput) auteurInput.value = valeur;
+            if (statutSession) {
+                statutSession.innerText = valeur ? `✓ Actif en tant que : ${valeur}` : "⚠️ Aucun pseudo défini";
+            }
+        }
+
+        // Coach IA
+        function mettreAJourConseil() {
+            const circuitType = document.getElementById('circuitSelect').value;
+            const meteo = document.getElementById('meteoSelect').value;
+            const phase = document.getElementById('phaseSelect').value;
+            const probleme = document.getElementById('problemeSelect').value;
+            const box = document.getElementById('conseilBox');
+
+            box.innerHTML = "💡 Analyse ingénieur de piste en cours...";
+
+            setTimeout(() => {
+                let diagnostic = "";
+                let modifAvant = "";
+                let modifArriere = "";
+                let modifGeo = "";
+                let modifElectro = "";
+
+                if (probleme.includes("Sous-virage")) {
+                    diagnostic = "La moto refuse de fermer sa trajectoire à l'inscription.";
+                    modifAvant = "• Augmenter la compression lente de +2 clics.";
+                    modifArriere = "• Assouplir la compression lente de -1 clic.";
+                    modifGeo = "• Rehausser l'assiette arrière de +1 mm.";
+                    modifElectro = "• Réduire le frein moteur de 1 niveau.";
+                } else if (probleme.includes("Survirage")) {
+                    diagnostic = "Perte d'adhérence de l'arrière au moment critique.";
+                    modifAvant = "• Libérer la détente de la fourche de -1 clic.";
+                    modifArriere = "• Freiner la détente de l'amortisseur (+2 clics).";
+                    modifGeo = "• Abaisser l'assiette arrière de -1 mm.";
+                    modifElectro = "• Augmenter le Contrôle de Traction (TC).";
+                } else if (probleme.includes("Pompage")) {
+                    diagnostic = "Oscillation parasite de la suspension à l'accélération.";
+                    modifAvant = "• Standard.";
+                    modifArriere = "• Augmenter compression lente et rapide de +2 clics.";
+                    modifGeo = "• Empattement d'origine.";
+                    modifElectro = "• Lisser l'arrivée de la puissance.";
+                } else {
+                    diagnostic = "Instabilité globale du train avant.";
+                    modifAvant = "• Resserrer compression rapide et ralentir détente.";
+                    modifArriere = "• Ajuster précharge de l'amortisseur.";
+                    modifGeo = "• Vérifier l'assiette.";
+                    modifElectro = "• Affiner l'Anti-wheeling.";
+                }
+
+                box.innerHTML = `💡 <strong>Analyse Ingénieur [${circuitType} | ${meteo}]</strong>\n\n` +
+                `🎯 <strong>Diagnostic (${phase} - ${probleme}) :</strong>\n${diagnostic}\n\n` +
+                `🛠️ <strong>Modifications :</strong>\n` +
+                `1. <strong>Avant :</strong> ${modifAvant}\n` +
+                `2. <strong>Arrière :</strong> ${modifArriere}\n` +
+                `3. <strong>Géométrie :</strong> ${modifGeo}\n` +
+                `4. <strong>Électronique :</strong> ${modifElectro}`;
+            }, 200);
+        }
+
+        // Base de données Setups
+        async function chargerSetups() {
+            const { data, error } = await supabase
+                .from('setups_publics')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            const listeDiv = document.getElementById('listeSetups');
+            if (error) {
+                listeDiv.innerHTML = "<p style='color:red;'>Erreur de chargement.</p>";
+                return;
+            }
+
+            tousLesSetups = data || [];
+            filtrerSetups();
+        }
+
+        function afficherSetups(setups) {
+            const listeDiv = document.getElementById('listeSetups');
+            if (setups.length === 0) {
+                listeDiv.innerHTML = "<p style='color:#888; text-align:center;'>Aucun set-up trouvé.</p>";
+                return;
+            }
+
+            let html = '';
+            setups.forEach(s => {
+                html += `
+                    <div class="setup-item">
+                        <h4>${s.titre} <span class="badge">${s.circuit || 'Général'}</span></h4>
+                        <p><strong>Moto :</strong> ${s.moto || 'Non spécifiée'}</p>
+                        <p>${s.details}</p>
+                        <small>Pilote : ${s.email_auteur || 'Anonyme'}</small>
+                    </div>
+                `;
+            });
+            listeDiv.innerHTML = html;
+        }
+
+        function filtrerSetups() {
+            const recherche = document.getElementById('filtreInput').value.toLowerCase();
+            const circuitFiltre = document.getElementById('filtreCircuitSelect').value;
+
+            const filtres = tousLesSetups.filter(s => {
+                const matchTexte = (
+                    (s.titre && s.titre.toLowerCase().includes(recherche)) ||
+                    (s.moto && s.moto.toLowerCase().includes(recherche)) ||
+                    (s.details && s.details.toLowerCase().includes(recherche)) ||
+                    (s.email_auteur && s.email_auteur.toLowerCase().includes(recherche))
+                );
+                const matchCircuit = circuitFiltre === "" || (s.circuit && s.circuit.toLowerCase() === circuitFiltre.toLowerCase());
+                return matchTexte && matchCircuit;
+            });
+
+            afficherSetups(filtres);
+        }
+
+        async function publierSetup(e) {
+            e.preventDefault();
+            const auteur = document.getElementById('auteurInput').value;
+            const moto = document.getElementById('motoInput').value;
+            const circuit = document.getElementById('circuitNomInput').value;
+            const details = document.getElementById('detailsInput').value;
+            const titre = `${moto} - Setup Course`;
+
+            const { error } = await supabase.from('setups_publics').insert([
+                { titre: titre, moto: moto, circuit: circuit, details: details, email_auteur: auteur }
+            ]);
+
+            if (error) {
+                alert("Erreur : " + error.message);
+            } else {
+                alert("Set-up partagé avec succès !");
+                document.getElementById('detailsInput').value = '';
+                chargerSetups();
+                changerSection('tab-setups', 'btn-setups');
+            }
+        }
+
+        // Initialisation PWA et application
+        window.onload = () => {
+            const pseudoSauvegarde = localStorage.getItem('vmv_pseudo') || '';
+            const pseudoInput = document.getElementById('pseudoActifInput');
+            if(pseudoInput) pseudoInput.value = pseudoSauvegarde;
+            mettreAJourPseudo(pseudoSauvegarde);
+
+            mettreAJourConseil();
+            chargerSetups();
+
+            // Enregistrement dynamique d'un Service Worker minimaliste (via Blob)
+            if ('serviceWorker' in navigator) {
+                const swCode = `self.addEventListener('install', e => self.skipWaiting()); self.addEventListener('fetch', e => e.respondWith(fetch(e.request)));`;
+                const blob = new Blob([swCode], { type: 'text/javascript' });
+                const swUrl = URL.createObjectURL(blob);
+                navigator.serviceWorker.register(swUrl).catch(err => console.log("SW error", err));
+            }
+        };
+    </script>
+</body>
+</html>
